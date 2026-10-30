@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Presupuestos</title>
+<meta name="theme-color" content="#2f93d6">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--tx:#1b1f24;--mu:#6b7280;--ac:#2f93d6;--rd:#c0392b;--bd:#e3e6ea;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171a;--card:#1e2327;--tx:#eceff1;--mu:#9aa5ad;--ac:#62bdf2;--rd:#ef6b5c;--bd:#2c343a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#14171a;--card:#1e2327;--tx:#eceff1;--mu:#9aa5ad;--ac:#62bdf2;--rd:#ef6b5c;--bd:#2c343a;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px system-ui,sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:0}
+.top{display:flex;justify-content:space-between;align-items:center;margin:4px 0 14px;gap:8px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+input,select,button{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px;min-width:0}
+input{flex:1}
+button{background:var(--ac);color:#fff;border:0;font-weight:600}
+.del{background:none;color:var(--rd);padding:4px 7px}
+.k{color:var(--mu);font-size:13px}
+.big{font-size:22px;font-weight:700}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tot{background:var(--ac);color:#fff;border:0}
+.tot .k{color:#e8f6ff}
+.neg{color:var(--rd)}
+.tot .neg{color:#fff;text-decoration:underline}
+li{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--bd);gap:8px}
+ul{list-style:none;margin:0;padding:0}
+.pos{color:var(--ac)}
+.chip{display:inline-block;background:var(--bg);border:1px solid var(--bd);border-radius:20px;padding:3px 10px;margin:6px 6px 0 0;font-size:13px}
+</style>
+</head>
+<body>
+<main>
+<div class="top"><h1>💰 Mi presupuesto</h1><input id="mes" type="month" style="flex:0 0 auto"></div>
+
+<div class="card tot"><div class="k">Total disponible del mes</div><div class="big" id="tT">0</div><div class="k" id="tS"></div></div>
+
+<div class="g">
+<div class="card"><input id="nA" value="Ingreso 1" style="width:100%;margin-bottom:6px"><input id="iA" type="number" inputmode="decimal" placeholder="Monto base" style="width:100%"><div class="k" style="margin-top:8px">Disponible</div><div class="big" id="rA">0</div></div>
+<div class="card"><input id="nB" value="Ingreso 2" style="width:100%;margin-bottom:6px"><input id="iB" type="number" inputmode="decimal" placeholder="Monto base" style="width:100%"><div class="k" style="margin-top:8px">Disponible</div><div class="big" id="rB">0</div></div>
+</div>
+
+<div class="card" id="form"><b>Movimiento</b>
+<div class="row" style="margin-top:8px"><select id="mT"><option value="g">Gasto</option><option value="i">Ingreso</option></select><select id="mS" style="flex:1"></select></div>
+<div class="row"><input id="mD" placeholder="Descripción"><input id="mM" type="number" inputmode="decimal" placeholder="Monto" style="max-width:110px"></div>
+<div class="row"><input id="mF" type="date"><input id="mC" list="cl" placeholder="Categoría"></div>
+<datalist id="cl"></datalist>
+<div class="row"><input id="mN" placeholder="Justificativo (opcional)"></div>
+<label class="row k"><input type="checkbox" id="mX" style="flex:0 0 auto"> Fijo: se repite todos los meses</label>
+<div class="row" style="margin:0"><button id="save" style="flex:1">Agregar</button><button id="cancel" style="display:none;background:var(--bd);color:var(--tx)">Cancelar</button></div>
+</div>
+
+<div class="card"><b>Movimientos del mes</b><div id="cats"></div><ul id="list"></ul></div>
+
+<button id="exp" style="width:100%;margin-bottom:16px">⬇ Exportar a Excel (CSV)</button>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const hoy=new Date().toLocaleDateString("sv");
+const CATS=["Comida","Transporte","Vivienda","Servicios","Salud","Ocio","Otros"];
+let S={nA:"Ingreso 1",nB:"Ingreso 2",iA:0,iB:0,g:[],fx:[]};
+try{const x=localStorage.getItem("presu");if(x)S=Object.assign(S,JSON.parse(x))}catch(e){}
+S.g=S.g.map(x=>Object.assign({t:"g",c:"",n:"",f:hoy},x));
+(S.fx||[]).forEach(x=>S.g.push(Object.assign({c:"",n:"",f:hoy},x,{fx:true})));S.fx=[];
+let mes=hoy.slice(0,7),ed=-1;
+const save=()=>{try{localStorage.setItem("presu",JSON.stringify(S))}catch(e){}};
+const f=n=>"Bs "+(Math.round(n*100)/100).toLocaleString("es-BO",{minimumFractionDigits:2,maximumFractionDigits:2});
+const nm=k=>k=="A"?S.nA:k=="B"?S.nB:"Solo total";
+const esc=s=>String(s).replace(/[<>&"]/g,"");
+const fd=s=>{const p=s.split("-");return p[2]+"/"+p[1]};
+function opts(){
+  $("mS").innerHTML=["A","B","T"].map(k=>`<option value="${k}">${esc(nm(k))}</option>`).join("");
+}
+function paint(){
+  const a=S.g.map((x,i)=>[x,i]).filter(([x])=>x.fx||x.f.slice(0,7)==mes);
+  const sm=(t,k)=>a.filter(([x])=>x.t==t&&(!k||x.s==k)).reduce((s,[x])=>s+x.m,0);
+  const rA=S.iA+sm("i","A")-sm("g","A"),rB=S.iB+sm("i","B")-sm("g","B");
+  const ing=S.iA+S.iB+sm("i"),gas=sm("g"),tot=ing-gas;
+  [["rA",rA],["rB",rB],["tT",tot]].forEach(([i,v])=>{$(i).textContent=f(v);$(i).className="big"+(v<0?" neg":"")});
+  $("tS").textContent=`${f(ing)} de ingresos − ${f(gas)} de gastos`;
+  const cs={};a.forEach(([x])=>{if(x.t=="g"){const c=x.c||"Sin categoría";cs[c]=(cs[c]||0)+x.m}});
+  $("cats").innerHTML=Object.entries(cs).sort((p,q)=>q[1]-p[1]).map(([k,v])=>`<span class="chip">${esc(k)} · ${f(v)}</span>`).join("");
+  $("cl").innerHTML=[...new Set(CATS.concat(S.g.map(x=>x.c).filter(Boolean)))].map(c=>`<option value="${esc(c)}">`).join("");
+  a.sort((p,q)=>(!!p[0].fx-!!q[0].fx)||q[0].f.localeCompare(p[0].f));
+  $("list").innerHTML=a.length?a.map(([x,i])=>`<li><span>${esc(x.d)}<br><span class="k">${x.fx?"Fijo":fd(x.f)} · ${esc(nm(x.s))}${x.c?" · "+esc(x.c):""}</span>${x.n?`<br><span class="k"><i>${esc(x.n)}</i></span>`:""}</span><span style="white-space:nowrap" class="${x.t=="i"?"pos":""}">${x.t=="i"?"+":"−"}${f(x.m)}<button class="del" style="color:var(--tx)" onclick="edit(${i})">✎</button><button class="del" onclick="del(${i})">✕</button></span></li>`).join(""):'<li class="k">Sin movimientos este mes</li>';
+}
+function del(i){if(confirm("¿Borrar este movimiento?")){S.g.splice(i,1);if(ed==i)reset();else if(ed>i)ed--;save();paint()}}
+function edit(i){const x=S.g[i];ed=i;$("mT").value=x.t;$("mD").value=x.d;$("mM").value=x.m;$("mF").value=x.f;$("mS").value=x.s;$("mC").value=x.c;$("mN").value=x.n;$("mX").checked=!!x.fx;$("save").textContent="Guardar cambios";$("cancel").style.display="";$("form").scrollIntoView({behavior:"smooth"})}
+function reset(){ed=-1;["mD","mM","mC","mN"].forEach(i=>$(i).value="");$("mF").value=hoy;$("mX").checked=false;$("save").textContent="Agregar";$("cancel").style.display="none"}
+$("cancel").onclick=reset;
+$("save").onclick=()=>{
+  const m=parseFloat($("mM").value);if(!m||m<=0)return;
+  const t=$("mT").value,fe=$("mF").value||hoy;
+  const o={t,d:$("mD").value||(t=="i"?"Ingreso":"Gasto"),m,s:$("mS").value,c:$("mC").value.trim(),n:$("mN").value.trim(),f:fe,fx:$("mX").checked};
+  if(ed>=0)S.g[ed]=o;else S.g.push(o);
+  reset();if(!o.fx){mes=fe.slice(0,7);$("mes").value=mes}save();paint();
+};
+function csv(){
+  const q=v=>'"'+String(v).replace(/"/g,'""')+'"';
+  const h=["Fecha","Tipo","Fijo","Descripción","Monto","Cuenta","Categoría","Justificativo"].join(";");
+  const r=S.g.slice().sort((a,b)=>b.f.localeCompare(a.f)).map(x=>[x.fx?"":x.f,x.t=="i"?"Ingreso":"Gasto",x.fx?"Sí":"No",q(x.d),String(x.m).replace(".",","),q(nm(x.s)),q(x.c),q(x.n)].join(";"));
+  return "\uFEFF"+[h].concat(r).join("\r\n");
+}
+$("exp").onclick=()=>{try{const b=new Blob([csv()],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="presupuesto.csv";document.body.appendChild(a);a.click();a.remove()}catch(e){}};
+$("nA").value=S.nA;$("nB").value=S.nB;$("iA").value=S.iA||"";$("iB").value=S.iB||"";$("mF").value=hoy;$("mes").value=mes;opts();
+$("mes").onchange=e=>{if(e.target.value){mes=e.target.value;paint()}};
+$("nA").oninput=e=>{S.nA=e.target.value;save();const v=$("mS").value;opts();$("mS").value=v;paint()};
+$("nB").oninput=e=>{S.nB=e.target.value;save();const v=$("mS").value;opts();$("mS").value=v;paint()};
+$("iA").oninput=e=>{S.iA=parseFloat(e.target.value)||0;save();paint()};
+$("iB").oninput=e=>{S.iB=parseFloat(e.target.value)||0;save();paint()};
+paint();
+if("serviceWorker" in navigator&&location.protocol.indexOf("http")==0){navigator.serviceWorker.register("sw.js").catch(()=>{})}
+</script>
+</body>
+</html>
